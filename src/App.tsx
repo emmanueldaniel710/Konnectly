@@ -192,7 +192,24 @@ export default function App() {
         }
       })
       .catch(() => {
-        setLoginErr("Security network validation failed. Try again.");
+        // Fallback to offline client-side validation logic to guarantee 100% resiliency when hosted statically or behind strict proxies
+        const isValidOnClient = VALID_CODES.has(trimmed);
+        if (isValidOnClient) {
+          setLoginErr("");
+          setLoginAttempts(0);
+          setUnlocked(true);
+          setPage("dash");
+        } else {
+          const attempts = loginAttempts + 1;
+          setLoginAttempts(attempts);
+          if (attempts >= 5) {
+            setLoginLockTime(Date.now() + 30000);
+            setLoginErr("Too many failed attempts. Core security lockout for 30s.");
+          } else {
+            setLoginErr("Invalid security key. Please pay or try again.");
+          }
+          setAccessCode("");
+        }
       });
   };
 
