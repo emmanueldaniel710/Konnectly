@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Konnectly · Private Fast P2P Chat</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script>
+      // Prevent noisy development HMR websocket connection error messages or unhandled rejections from prompting error dialogs
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && (
+          e.reason.message?.includes('WebSocket') || 
+          e.reason.message?.includes('vite') ||
+          e.reason.message?.includes('EventSource') ||
+          (typeof e.reason === 'string' && (
+            e.reason.includes('WebSocket') ||
+            e.reason.includes('vite') ||
+            e.reason.includes('EventSource')
+          ))
+        )) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+      window.addEventListener('error', function(e) {
+        if (e.message && (
+          e.message.includes('WebSocket') ||
+          e.message.includes('vite') ||
+          e.message.includes('EventSource')
+        )) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
