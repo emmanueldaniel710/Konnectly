@@ -79,10 +79,11 @@ app.post("/api/rooms/:code/create", (req: Request, res: Response) => {
 app.get("/api/rooms/:code/status", (req: Request, res: Response) => {
   const { code } = req.params;
   const roomCode = code.toUpperCase();
-  const room = rooms.get(roomCode);
+  let room = rooms.get(roomCode);
   if (!room) {
-    res.status(404).json({ exists: false });
-    return;
+    // Proactively initialize the ephemeral room to handle multi-host container edge-cases and eliminate race conditions
+    room = { code: roomCode, host: null, guest: null, history: [], lastActive: Date.now() };
+    rooms.set(roomCode, room);
   }
   room.lastActive = Date.now();
   res.json({
@@ -110,15 +111,9 @@ app.get("/api/rooms/:code/stream", (req: Request, res: Response) => {
   let room = rooms.get(roomCode);
 
   if (!room) {
-    if (peerId === "host") {
-      // Create room dynamically if host connects or reconnects
-      room = { code: roomCode, host: null, guest: null, history: [], lastActive: Date.now() };
-      rooms.set(roomCode, room);
-    } else {
-      res.status(404).write("Room not found");
-      res.end();
-      return;
-    }
+    // Proactively initialize the ephemeral room for host or guest to make connection 100% resilient
+    room = { code: roomCode, host: null, guest: null, history: [], lastActive: Date.now() };
+    rooms.set(roomCode, room);
   }
 
   room.lastActive = Date.now();
@@ -344,7 +339,7 @@ app.get("/api/rooms/:code/history", (req: Request, res: Response) => {
   const roomCode = code.toUpperCase();
   const room = rooms.get(roomCode);
   if (!room) {
-    res.status(404).json({ error: "Room not found" });
+    res.json([]);
     return;
   }
   room.lastActive = Date.now();
