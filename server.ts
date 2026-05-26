@@ -34,14 +34,16 @@ interface Room {
   host: Client | null;
   guest: Client | null;
   history: Message[];
+  lastActive: number;
 }
 
 const rooms = new Map<string, Room>();
 
-// Periodically clean up offline rooms (older than 2 hours or no listeners)
+// Periodically clean up offline rooms (completely inactive/empty for over 2 hours)
 setInterval(() => {
+  const now = Date.now();
   for (const [code, room] of rooms.entries()) {
-    if (!room.host && !room.guest) {
+    if (!room.host && !room.guest && (now - room.lastActive > 7200000)) {
       rooms.delete(code);
     }
   }
@@ -59,14 +61,30 @@ app.post("/api/validate-code", (req: Request, res: Response) => {
   res.json({ valid });
 });
 
+// Explicit Room Registration Endpoint
+app.post("/api/rooms/:code/create", (req: Request, res: Response) => {
+  const { code } = req.params;
+  const roomCode = code.toUpperCase();
+  let room = rooms.get(roomCode);
+  if (!room) {
+    room = { code: roomCode, host: null, guest: null, history: [], lastActive: Date.now() };
+    rooms.set(roomCode, room);
+  } else {
+    room.lastActive = Date.now();
+  }
+  res.json({ success: true, code: roomCode });
+});
+
 // Room status check
 app.get("/api/rooms/:code/status", (req: Request, res: Response) => {
   const { code } = req.params;
-  const room = rooms.get(code.toUpperCase());
+  const roomCode = code.toUpperCase();
+  const room = rooms.get(roomCode);
   if (!room) {
     res.status(404).json({ exists: false });
     return;
   }
+  room.lastActive = Date.now();
   res.json({
     exists: true,
     hasHost: !!room.host,
@@ -94,7 +112,7 @@ app.get("/api/rooms/:code/stream", (req: Request, res: Response) => {
   if (!room) {
     if (peerId === "host") {
       // Create room dynamically if host connects or reconnects
-      room = { code: roomCode, host: null, guest: null, history: [] };
+      room = { code: roomCode, host: null, guest: null, history: [], lastActive: Date.now() };
       rooms.set(roomCode, room);
     } else {
       res.status(404).write("Room not found");
@@ -103,11 +121,16 @@ app.get("/api/rooms/:code/stream", (req: Request, res: Response) => {
     }
   }
 
-  // Set headers for SSE stream
+  room.lastActive = Date.now();
+
+  // Set headers for SSE stream with buffering bypass and absolute non-cache controls
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
+    "Cache-Control": "no-cache, no-transform, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
   });
 
   // Client connection object
@@ -177,14 +200,6 @@ app.get("/api/rooms/:code/stream", (req: Request, res: Response) => {
           sendEvent(room.host.res, "partner_disconnected", {});
         }
       }
-
-      // If everyone is gone, delete the room in 10 seconds unless they reconnect
-      setTimeout(() => {
-        const activeRoom = rooms.get(roomCode);
-        if (activeRoom && !activeRoom.host && !activeRoom.guest) {
-          rooms.delete(roomCode);
-        }
-      }, 10000);
     }
   });
 });
@@ -200,6 +215,8 @@ app.post("/api/rooms/:code/send", (req: Request, res: Response) => {
     res.status(404).json({ error: "Room not found" });
     return;
   }
+
+  room.lastActive = Date.now();
 
   const msgId = "msg_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
   const msgObj: Message = {
@@ -239,6 +256,8 @@ app.post("/api/rooms/:code/typing", (req: Request, res: Response) => {
     return;
   }
 
+  room.lastActive = Date.now();
+
   const sender = peerId === "host" ? room.host : room.guest;
   if (sender) {
     sender.isTyping = !!isTyping;
@@ -265,6 +284,8 @@ app.post("/api/rooms/:code/profile", (req: Request, res: Response) => {
     res.status(404).json({ error: "Room not found" });
     return;
   }
+
+  room.lastActive = Date.now();
 
   const sender = peerId === "host" ? room.host : room.guest;
   if (sender) {
@@ -300,6 +321,8 @@ app.post("/api/rooms/:code/seen", (req: Request, res: Response) => {
     return;
   }
 
+  room.lastActive = Date.now();
+
   const target = peerId === "host" ? room.guest : room.host;
   if (target) {
     try {
@@ -318,11 +341,13 @@ app.post("/api/rooms/:code/seen", (req: Request, res: Response) => {
 // Fetch Room Backlog (History)
 app.get("/api/rooms/:code/history", (req: Request, res: Response) => {
   const { code } = req.params;
-  const room = rooms.get(code.toUpperCase());
+  const roomCode = code.toUpperCase();
+  const room = rooms.get(roomCode);
   if (!room) {
     res.status(404).json({ error: "Room not found" });
     return;
   }
+  room.lastActive = Date.now();
   res.json(room.history);
 });
 

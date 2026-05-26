@@ -392,9 +392,19 @@ export default function App() {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const name = profileName.trim() || "Anonymous";
     
-    // Connect to streams
-    startEventStream(code, "host", name, profileColor);
-    setCreateLoading(false);
+    try {
+      // Direct POST registration guarantees immediate room existence before stream establishment or guest connection!
+      await fetch(`/api/rooms/${code}/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      // Connect to streams
+      startEventStream(code, "host", name, profileColor);
+    } catch (e) {
+      setDashboardStatus("Network validation error. Please try again.");
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   // Premium Member Action: Join Room 
@@ -1383,9 +1393,9 @@ export default function App() {
             </div>
 
             {/* Secure Chat Foot tools controls */}
-            <div className="chat-foot bg-[rgba(6,10,28,0.9)] border-t border-[rgba(90,140,255,0.1)] backdrop-blur-xl p-[0.7rem_1rem_0.85rem] flex items-center gap-[0.6rem] flex-shrink-0 relative z-30">
-              {streamStatus !== "connected" ? (
-                <div className="flex-1 flex items-center justify-between bg-[rgba(0,220,200,0.03)] border border-[#00dcc8]/20 rounded-full px-4 py-[0.55rem] text-xs">
+            <div className="chat-foot bg-[rgba(6,10,28,0.9)] border-t border-[rgba(90,140,255,0.1)] backdrop-blur-xl p-[0.7rem_1rem_0.85rem] flex flex-col gap-2 flex-shrink-0 relative z-30">
+              {streamStatus !== "connected" && (
+                <div className="w-full flex items-center justify-between bg-[rgba(0,220,190,0.03)] border border-[#00dcc8]/20 rounded-lg px-4 py-1.5 text-xs">
                   <div className="flex items-center gap-2 text-[#00dcc8] font-medium">
                     <span className="w-2 h-2 rounded-full bg-[#00dcc8] animate-ping inline-block mr-1"></span>
                     <span>
@@ -1395,7 +1405,9 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-              ) : isRecording ? (
+              )}
+
+              {isRecording ? (
                 <div className="flex-1 flex items-center justify-between bg-[rgba(255,69,96,0.06)] border border-red-500/25 rounded-full px-4 py-[0.5rem] text-xs">
                   <div className="flex items-center gap-2 text-red-500 font-medium">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping inline-block"></span>
@@ -1419,9 +1431,14 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <>
+                <div className="flex items-center gap-[0.6rem] w-full">
                   <button
-                    className="btn-icon w-11 h-11 border border-[rgba(90,140,255,0.1)] hover:border-[#00dcc8] text-[#7090c0] hover:text-[#00dcc8] bg-[rgba(20,30,60,0.7)] flex items-center justify-center rounded-full cursor-pointer transition-all flex-shrink-0"
+                    disabled={streamStatus !== "connected"}
+                    className="btn-icon w-11 h-11 border border-[rgba(90,140,255,0.1)] hover:border-[#00dcc8] text-[#7090c0] hover:text-[#00dcc8] bg-[rgba(20,30,60,0.7)] flex items-center justify-center rounded-full transition-all flex-shrink-0"
+                    style={{
+                      opacity: streamStatus !== "connected" ? 0.4 : 1,
+                      cursor: streamStatus !== "connected" ? "not-allowed" : "pointer"
+                    }}
                     title="Send any size Image attachment"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -1429,7 +1446,12 @@ export default function App() {
                   </button>
 
                   <button
-                    className="btn-icon w-11 h-11 border border-[rgba(90,140,255,0.1)] hover:border-[#00dcc8] text-[#7090c0] hover:text-[#00dcc8] bg-[rgba(20,30,60,0.7)] flex items-center justify-center rounded-full cursor-pointer transition-all flex-shrink-0"
+                    disabled={streamStatus !== "connected"}
+                    className="btn-icon w-11 h-11 border border-[rgba(90,140,255,0.1)] hover:border-[#00dcc8] text-[#7090c0] hover:text-[#00dcc8] bg-[rgba(20,30,60,0.7)] flex items-center justify-center rounded-full transition-all flex-shrink-0"
+                    style={{
+                      opacity: streamStatus !== "connected" ? 0.4 : 1,
+                      cursor: streamStatus !== "connected" ? "not-allowed" : "pointer"
+                    }}
                     title="Record and Send Voice Memo"
                     onClick={startRecording}
                   >
@@ -1439,7 +1461,8 @@ export default function App() {
                   <input
                     type="text"
                     ref={messageInputRef}
-                    placeholder="Type your secure message…"
+                    disabled={streamStatus !== "connected"}
+                    placeholder={streamStatus !== "connected" ? "Connecting to secure relay..." : "Type your secure message…"}
                     onChange={handleKeyDown}
                     onFocus={() => sendSeenStatus(true)}
                     onKeyDown={(e) => {
@@ -1448,16 +1471,25 @@ export default function App() {
                       }
                     }}
                     className="msg-input flex-1 bg-[rgba(4,6,15,0.6)] border border-[rgba(90,140,255,0.15)] rounded-full px-5 py-[0.68rem] text-sm text-slate-100 placeholder-[#3a5080] outline-none transition-all focus:border-[#00dcc8]"
+                    style={{
+                      opacity: streamStatus !== "connected" ? 0.6 : 1,
+                      cursor: streamStatus !== "connected" ? "not-allowed" : "text"
+                    }}
                     autoComplete="off"
                   />
 
                   <button
+                    disabled={streamStatus !== "connected"}
                     onClick={handleSendMessage}
-                    className="btn-send w-11 h-11 bg-gradient-to-br from-teal-400 to-[#00b8a6] text-black shadow-md flex items-center justify-center rounded-full cursor-pointer transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                    className="btn-send w-11 h-11 bg-gradient-to-br from-teal-400 to-[#00b8a6] text-black shadow-md flex items-center justify-center rounded-full transition-all flex-shrink-0"
+                    style={{
+                      opacity: streamStatus !== "connected" ? 0.4 : 1,
+                      cursor: streamStatus !== "connected" ? "not-allowed" : "pointer"
+                    }}
                   >
                     <i className="fas fa-paper-plane text-base"></i>
                   </button>
-                </>
+                </div>
               )}
 
               <input
